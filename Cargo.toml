@@ -1,0 +1,14 @@
+[package]
+name = "begonia"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+name = "begonia"
+crate-type = ["cdylib"]
+
+[dependencies]
+pyo3 = "0.24.0"
+numpy = "0.24.0"
+nalgebra = "0.33.2"
+lstsq = "0.6.0"
