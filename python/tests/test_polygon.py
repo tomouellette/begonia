@@ -731,3 +731,33 @@ class TestPolygon:
         assert np.abs(p.max_feret() - np.sqrt(2.)) < 1e-9
         assert np.abs(q.max_feret() - np.sqrt(2.)) < 1e-9
         assert np.abs(z.max_feret() - 2.) < 1e-15
+
+    def test_descriptors(self):
+        for p in [
+            polygon_unwrapped(),
+            polygon_wrapped(),
+            unit_circle()
+        ]:
+            descriptors = p.descriptors()
+            for i, method in enumerate([
+                "area",
+                "area_bbox",
+                "area_convex",
+                "perimeter",
+                "elongation",
+                "thread_length",
+                "solidity",
+                "extent",
+                "form_factor",
+                "equivalent_diameter",
+                "eccentricity",
+                "major_axis_length",
+                "minor_axis_length",
+                "min_radius",
+                "max_radius",
+                "mean_radius",
+                "min_feret",
+                "max_feret"
+            ]):
+                value = getattr(p, method)()
+                assert value == descriptors[i]

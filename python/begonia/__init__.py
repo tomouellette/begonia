@@ -1,6 +1,6 @@
-from .pear import *
+from .begonia import *
 
 
-__doc__ = pear.__doc__
-if hasattr(pear, "__all__"):
-    __all__ = pear.__all__
+__doc__ = begonia.__doc__
+if hasattr(begonia, "__all__"):
+    __all__ = begonia.__all__

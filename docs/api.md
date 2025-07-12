@@ -434,3 +434,7 @@ Compute the minimum feret diameter of the polygon
 ### `max_feret(self) -> float`
 
 Compute the maximum feret diameter of the polygon
+
+### `descriptors(self) -> [f64; 18]`
+
+Compute all available descriptors of the polygon

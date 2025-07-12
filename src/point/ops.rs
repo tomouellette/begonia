@@ -58,14 +58,7 @@ pub fn d_cosine(a: &Point2d, b: &Point2d) -> f64 {
 }
 
 pub fn interp(a: &Point2d, b: &Point2d, t: f64) -> Point2d {
-    let t: f64 = if t > 1.0 {
-        1.0
-    } else if t < 0.0 {
-        0.0
-    } else {
-        t
-    };
-
+    let t: f64 = t.clamp(0., 1.);
     Point2d {
         x: a.x * (1.0 - t) + b.x * t,
         y: a.y * (1.0 - t) + b.y * t,
