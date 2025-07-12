@@ -1208,6 +1208,16 @@ impl Polygon {
     pub fn max_feret(&self) -> f64 {
         ops::max_feret(self)
     }
+
+    /// Compute all available descriptors of the polygon
+    ///
+    /// Returns
+    /// -------
+    /// List[float]
+    ///     A total of 18 different form descriptors.
+    pub fn descriptors(&self) -> [f64; 18] {
+        ops::descriptors(self)
+    }
 }
 
 #[pyclass]

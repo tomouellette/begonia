@@ -701,7 +701,7 @@ fn point_to_line_segment_distance(px: f64, py: f64, p1: &[f64; 2], p2: &[f64; 2]
     let t = ((px - x1) * dx + (py - y1) * dy) / (dx * dx + dy * dy);
 
     // Clamp t to [0, 1] to stay within the line segment
-    let t = t.max(0.0).min(1.0);
+    let t = t.clamp(0., 1.);
 
     // Closest point on the segment
     let closest_x = x1 + t * dx;
@@ -933,9 +933,9 @@ pub fn align_to(polygon: &Polygon, reference: &Polygon, scale: bool) -> Polygon 
     // Rotation and scale adjustment
     let mut aligned = Vec::with_capacity(n);
 
-    for i in 0..effective_n {
-        let px_i = (points[i][0] - px) / p_norm;
-        let py_i = (points[i][1] - py) / p_norm;
+    for point in points.iter().take(effective_n) {
+        let px_i = (point[0] - px) / p_norm;
+        let py_i = (point[1] - py) / p_norm;
 
         let x_new = cos_theta * px_i - sin_theta * py_i;
         let y_new = sin_theta * px_i + cos_theta * py_i;
@@ -952,280 +952,6 @@ pub fn align_to(polygon: &Polygon, reference: &Polygon, scale: bool) -> Polygon 
         _deduped: polygon._deduped,
         _ordered: polygon._ordered,
     }
-}
-
-#[inline]
-pub fn area(polygon: &Polygon) -> f64 {
-    let mut area = 0.0;
-    let n = polygon.xy.len();
-    for i in 0..n - 1 {
-        let p1 = &polygon.xy[i];
-        let p2 = &polygon.xy[i + 1];
-        area += p1[0] * p2[1] - p2[0] * p1[1];
-    }
-    if polygon.xy[0][0] != polygon.xy[n - 1][0] || polygon.xy[0][1] != polygon.xy[n - 1][1] {
-        let p1 = &polygon.xy[n - 1];
-        let p2 = &polygon.xy[0];
-        area += p1[0] * p2[1] - p2[0] * p1[1];
-    }
-    area.abs() / 2.0
-}
-
-#[inline]
-pub fn area_bbox(polygon: &Polygon) -> f64 {
-    let (mut xmin, mut ymin) = (polygon.xy[0][0], polygon.xy[0][1]);
-    let (mut xmax, mut ymax) = (polygon.xy[0][0], polygon.xy[0][1]);
-    for point in polygon.xy.iter().skip(1) {
-        xmin = if point[0] < xmin { point[0] } else { xmin };
-        ymin = if point[1] < ymin { point[1] } else { ymin };
-        xmax = if point[0] > xmax { point[0] } else { xmax };
-        ymax = if point[1] > ymax { point[1] } else { ymax };
-    }
-    (xmax - xmin) * (ymax - ymin)
-}
-
-#[inline]
-pub fn area_convex(polygon: &Polygon) -> f64 {
-    area(&polygon.convex_hull())
-}
-
-#[inline]
-pub fn perimeter(polygon: &Polygon) -> f64 {
-    let n_points = polygon.xy.len();
-    let mut perimeter = 0.0;
-    for i in 0..n_points - 1 {
-        let dx = polygon.xy[i][0] - polygon.xy[i + 1][0];
-        let dy = polygon.xy[i][1] - polygon.xy[i + 1][1];
-        perimeter += (dx * dx + dy * dy).sqrt();
-    }
-    if polygon.xy[0][0] != polygon.xy[n_points - 1][0]
-        || polygon.xy[0][1] != polygon.xy[n_points - 1][1]
-    {
-        let dx = polygon.xy[polygon.xy.len() - 1][0] - polygon.xy[0][0];
-        let dy = polygon.xy[polygon.xy.len() - 1][1] - polygon.xy[0][1];
-        perimeter += (dx * dx + dy * dy).sqrt();
-    }
-    perimeter
-}
-
-#[inline]
-pub fn elongation(polygon: &Polygon) -> f64 {
-    let (mut xmin, mut ymin) = (polygon.xy[0][0], polygon.xy[0][1]);
-    let (mut xmax, mut ymax) = (polygon.xy[0][0], polygon.xy[0][1]);
-    for point in polygon.xy.iter().skip(1) {
-        xmin = if point[0] < xmin { point[0] } else { xmin };
-        ymin = if point[1] < ymin { point[1] } else { ymin };
-        xmax = if point[0] > xmax { point[0] } else { xmax };
-        ymax = if point[1] > ymax { point[1] } else { ymax };
-    }
-    let width = xmax - xmin;
-    let height = ymax - ymin;
-    if height == 0.0 {
-        return if width == 0.0 { 1.0 } else { 0.0 };
-    }
-    let elongation = width / height;
-    if elongation > 1.0 {
-        1.0 / elongation
-    } else {
-        elongation
-    }
-}
-
-#[inline]
-pub fn thread_length(polygon: &Polygon) -> f64 {
-    let perimeter = perimeter(polygon);
-    let area = area(polygon);
-
-    let left = perimeter.powi(2);
-    let right = 16.0 * area;
-
-    let coefficient = if left <= right {
-        0.0
-    } else {
-        (left - right).sqrt()
-    };
-
-    (perimeter + coefficient) / 4.0
-}
-
-#[inline]
-pub fn solidity(polygon: &Polygon) -> f64 {
-    let area_convex = area_convex(polygon);
-    if area_convex == 0.0 {
-        0.0
-    } else {
-        area(polygon) / area_convex
-    }
-}
-
-#[inline]
-pub fn extent(polygon: &Polygon) -> f64 {
-    let area_bbox = area_bbox(polygon);
-    if area_bbox == 0.0 {
-        0.0
-    } else {
-        area(polygon) / area_bbox
-    }
-}
-
-#[inline]
-pub fn form_factor(polygon: &Polygon) -> f64 {
-    let perimeter = perimeter(polygon);
-    if perimeter == 0.0 {
-        0.0
-    } else {
-        (4.0 * std::f64::consts::PI * area(polygon)) / (perimeter * perimeter)
-    }
-}
-
-#[inline]
-pub fn equivalent_diameter(polygon: &Polygon) -> f64 {
-    (area(polygon) / std::f64::consts::PI).sqrt() * 2.0
-}
-
-#[inline]
-pub fn eccentricity(polygon: &Polygon) -> f64 {
-    let ellipse = fit_ellipse_lstsq(&polygon);
-    ellipse[2]
-}
-
-#[inline]
-pub fn major_axis_length(polygon: &Polygon) -> f64 {
-    let ellipse = fit_ellipse_lstsq(&polygon);
-    ellipse[0]
-}
-
-#[inline]
-pub fn minor_axis_length(polygon: &Polygon) -> f64 {
-    let ellipse = fit_ellipse_lstsq(&polygon);
-    ellipse[1]
-}
-
-#[inline]
-pub fn min_radius(polygon: &Polygon) -> f64 {
-    let centroid = polygon_centroid(polygon);
-    let mut min_radius = f64::MAX;
-
-    for i in 0..polygon.xy.len() {
-        let p1 = &polygon.xy[i];
-        let p2 = &polygon.xy[(i + 1) % polygon.xy.len()];
-
-        let distance = point_to_line_segment_distance(centroid.x, centroid.y, p1, p2);
-        if distance < min_radius {
-            min_radius = distance;
-        }
-    }
-
-    min_radius
-}
-
-#[inline]
-pub fn max_radius(polygon: &Polygon) -> f64 {
-    let centroid = polygon_centroid(polygon);
-    let mut maximum_radius = 0.0;
-    for &point in polygon.xy.iter() {
-        let distance = (centroid.x - point[0]) * (centroid.x - point[0])
-            + (centroid.y - point[1]) * (centroid.y - point[1]);
-        if distance > maximum_radius {
-            maximum_radius = distance;
-        }
-    }
-    maximum_radius.sqrt()
-}
-
-#[inline]
-pub fn mean_radius(polygon: &Polygon) -> f64 {
-    let centroid = polygon_centroid(polygon);
-    let n = polygon.xy.len();
-    let include_last = (polygon.xy.last().unwrap()[0] == polygon.xy[0][0]
-        && polygon.xy.last().unwrap()[1] == polygon.xy[0][1]) as usize;
-    let mut mean_radius = 0.0;
-    for point in polygon.xy.iter().take(n - include_last) {
-        let distance = (centroid.x - point[0]) * (centroid.x - point[0])
-            + (centroid.y - point[1]) * (centroid.y - point[1]);
-        mean_radius += distance.sqrt();
-    }
-    mean_radius / (n - include_last) as f64
-}
-
-#[inline]
-pub fn min_feret(polygon: &Polygon) -> f64 {
-    let hull = convex_hull(polygon).xy;
-    let n = hull.len();
-
-    let mut edges = Vec::with_capacity(n);
-    let mut edge_lengths = Vec::with_capacity(n);
-
-    for i in 0..n {
-        let p1 = hull[i];
-        let p2 = hull[(i + 1) % n];
-        let edge = [p2[0] - p1[0], p2[1] - p1[1]];
-        let len = (edge[0] * edge[0] + edge[1] * edge[1]).sqrt();
-        edges.push(edge);
-        edge_lengths.push(len);
-    }
-
-    let mut min_width = f64::MAX;
-
-    for i in 0..n {
-        if edge_lengths[i] < f64::EPSILON {
-            continue;
-        }
-
-        let p1 = hull[i];
-        let edge = edges[i];
-        let edge_len = edge_lengths[i];
-
-        let mut max_dist: f64 = 0.0;
-
-        for &point in &hull {
-            let to_point = [point[0] - p1[0], point[1] - p1[1]];
-            let dist = (edge[0] * to_point[1] - edge[1] * to_point[0]).abs() / edge_len;
-            max_dist = max_dist.max(dist);
-        }
-
-        if max_dist > f64::EPSILON {
-            min_width = min_width.min(max_dist);
-        }
-    }
-
-    min_width
-}
-
-#[inline]
-pub fn max_feret(polygon: &Polygon) -> f64 {
-    let hull = convex_hull(polygon).xy;
-    let n = hull.len();
-
-    let mut max_dist_sq: f64 = 0.0;
-    let mut j = 1;
-
-    for i in 0..n {
-        loop {
-            let next_j = (j + 1) % n;
-
-            let dx1 = hull[i][0] - hull[j][0];
-            let dy1 = hull[i][1] - hull[j][1];
-            let dist1_sq = dx1 * dx1 + dy1 * dy1;
-
-            let dx2 = hull[i][0] - hull[next_j][0];
-            let dy2 = hull[i][1] - hull[next_j][1];
-            let dist2_sq = dx2 * dx2 + dy2 * dy2;
-
-            if dist2_sq > dist1_sq {
-                j = next_j;
-            } else {
-                break;
-            }
-        }
-
-        let dx = hull[i][0] - hull[j][0];
-        let dy = hull[i][1] - hull[j][1];
-        let dist_sq = dx * dx + dy * dy;
-        max_dist_sq = max_dist_sq.max(dist_sq);
-    }
-
-    max_dist_sq.sqrt()
 }
 
 #[inline]
@@ -1359,5 +1085,493 @@ pub fn fit_ellipse_lstsq(polygon: &Polygon) -> [f64; 4] {
         axis_length_minor * 2.0,
         eccentricity,
         phi,
+    ]
+}
+
+#[inline]
+pub fn area(polygon: &Polygon) -> f64 {
+    let mut area = 0.0;
+    let n = polygon.xy.len();
+    for i in 0..n - 1 {
+        let p1 = &polygon.xy[i];
+        let p2 = &polygon.xy[i + 1];
+        area += p1[0] * p2[1] - p2[0] * p1[1];
+    }
+    if polygon.xy[0][0] != polygon.xy[n - 1][0] || polygon.xy[0][1] != polygon.xy[n - 1][1] {
+        let p1 = &polygon.xy[n - 1];
+        let p2 = &polygon.xy[0];
+        area += p1[0] * p2[1] - p2[0] * p1[1];
+    }
+    area.abs() / 2.0
+}
+
+#[inline]
+pub fn area_bbox(polygon: &Polygon) -> f64 {
+    let (mut xmin, mut ymin) = (polygon.xy[0][0], polygon.xy[0][1]);
+    let (mut xmax, mut ymax) = (polygon.xy[0][0], polygon.xy[0][1]);
+    for point in polygon.xy.iter().skip(1) {
+        xmin = if point[0] < xmin { point[0] } else { xmin };
+        ymin = if point[1] < ymin { point[1] } else { ymin };
+        xmax = if point[0] > xmax { point[0] } else { xmax };
+        ymax = if point[1] > ymax { point[1] } else { ymax };
+    }
+    (xmax - xmin) * (ymax - ymin)
+}
+
+#[inline]
+pub fn area_convex(polygon: &Polygon) -> f64 {
+    area(&polygon.convex_hull())
+}
+
+#[inline]
+pub fn perimeter(polygon: &Polygon) -> f64 {
+    let n_points = polygon.xy.len();
+    let mut perimeter = 0.0;
+    for i in 0..n_points - 1 {
+        let dx = polygon.xy[i][0] - polygon.xy[i + 1][0];
+        let dy = polygon.xy[i][1] - polygon.xy[i + 1][1];
+        perimeter += (dx * dx + dy * dy).sqrt();
+    }
+    if polygon.xy[0][0] != polygon.xy[n_points - 1][0]
+        || polygon.xy[0][1] != polygon.xy[n_points - 1][1]
+    {
+        let dx = polygon.xy[polygon.xy.len() - 1][0] - polygon.xy[0][0];
+        let dy = polygon.xy[polygon.xy.len() - 1][1] - polygon.xy[0][1];
+        perimeter += (dx * dx + dy * dy).sqrt();
+    }
+    perimeter
+}
+
+#[inline]
+pub fn elongation(polygon: &Polygon) -> f64 {
+    let (mut xmin, mut ymin) = (polygon.xy[0][0], polygon.xy[0][1]);
+    let (mut xmax, mut ymax) = (polygon.xy[0][0], polygon.xy[0][1]);
+    for point in polygon.xy.iter().skip(1) {
+        xmin = if point[0] < xmin { point[0] } else { xmin };
+        ymin = if point[1] < ymin { point[1] } else { ymin };
+        xmax = if point[0] > xmax { point[0] } else { xmax };
+        ymax = if point[1] > ymax { point[1] } else { ymax };
+    }
+    let width = xmax - xmin;
+    let height = ymax - ymin;
+    if height == 0.0 {
+        return if width == 0.0 { 1.0 } else { 0.0 };
+    }
+    let elongation = width / height;
+    if elongation > 1.0 {
+        1.0 / elongation
+    } else {
+        elongation
+    }
+}
+
+#[inline]
+pub fn thread_length(polygon: &Polygon) -> f64 {
+    let perimeter = perimeter(polygon);
+    let area = area(polygon);
+
+    let left = perimeter.powi(2);
+    let right = 16.0 * area;
+
+    let coefficient = if left <= right {
+        0.0
+    } else {
+        (left - right).sqrt()
+    };
+
+    (perimeter + coefficient) / 4.0
+}
+
+#[inline]
+pub fn solidity(polygon: &Polygon) -> f64 {
+    let area_convex = area_convex(polygon);
+    if area_convex == 0.0 {
+        0.0
+    } else {
+        area(polygon) / area_convex
+    }
+}
+
+#[inline]
+pub fn extent(polygon: &Polygon) -> f64 {
+    let area_bbox = area_bbox(polygon);
+    if area_bbox == 0.0 {
+        0.0
+    } else {
+        area(polygon) / area_bbox
+    }
+}
+
+#[inline]
+pub fn form_factor(polygon: &Polygon) -> f64 {
+    let perimeter = perimeter(polygon);
+    if perimeter == 0.0 {
+        0.0
+    } else {
+        (4.0 * std::f64::consts::PI * area(polygon)) / (perimeter * perimeter)
+    }
+}
+
+#[inline]
+pub fn equivalent_diameter(polygon: &Polygon) -> f64 {
+    (area(polygon) / std::f64::consts::PI).sqrt() * 2.0
+}
+
+#[inline]
+pub fn eccentricity(polygon: &Polygon) -> f64 {
+    let ellipse = fit_ellipse_lstsq(polygon);
+    ellipse[2]
+}
+
+#[inline]
+pub fn major_axis_length(polygon: &Polygon) -> f64 {
+    let ellipse = fit_ellipse_lstsq(polygon);
+    ellipse[0]
+}
+
+#[inline]
+pub fn minor_axis_length(polygon: &Polygon) -> f64 {
+    let ellipse = fit_ellipse_lstsq(polygon);
+    ellipse[1]
+}
+
+#[inline]
+pub fn min_radius(polygon: &Polygon) -> f64 {
+    let centroid = polygon_centroid(polygon);
+    let mut min_radius = f64::MAX;
+
+    for i in 0..polygon.xy.len() {
+        let p1 = &polygon.xy[i];
+        let p2 = &polygon.xy[(i + 1) % polygon.xy.len()];
+
+        let distance = point_to_line_segment_distance(centroid.x, centroid.y, p1, p2);
+        if distance < min_radius {
+            min_radius = distance;
+        }
+    }
+
+    min_radius
+}
+
+#[inline]
+pub fn max_radius(polygon: &Polygon) -> f64 {
+    let centroid = polygon_centroid(polygon);
+    let mut maximum_radius = 0.0;
+    for &point in polygon.xy.iter() {
+        let distance = (centroid.x - point[0]) * (centroid.x - point[0])
+            + (centroid.y - point[1]) * (centroid.y - point[1]);
+        if distance > maximum_radius {
+            maximum_radius = distance;
+        }
+    }
+    maximum_radius.sqrt()
+}
+
+#[inline]
+pub fn mean_radius(polygon: &Polygon) -> f64 {
+    let centroid = polygon_centroid(polygon);
+    let n = polygon.xy.len();
+    let include_last = (polygon.xy.last().unwrap()[0] == polygon.xy[0][0]
+        && polygon.xy.last().unwrap()[1] == polygon.xy[0][1]) as usize;
+    let mut mean_radius = 0.0;
+    for point in polygon.xy.iter().take(n - include_last) {
+        let distance = (centroid.x - point[0]) * (centroid.x - point[0])
+            + (centroid.y - point[1]) * (centroid.y - point[1]);
+        mean_radius += distance.sqrt();
+    }
+    mean_radius / (n - include_last) as f64
+}
+
+#[inline]
+pub fn min_feret(polygon: &Polygon) -> f64 {
+    let hull = convex_hull(polygon).xy;
+    let n = hull.len();
+
+    let mut edges = Vec::with_capacity(n);
+    let mut edge_lengths = Vec::with_capacity(n);
+
+    for i in 0..n {
+        let p1 = hull[i];
+        let p2 = hull[(i + 1) % n];
+        let edge = [p2[0] - p1[0], p2[1] - p1[1]];
+        let len = (edge[0] * edge[0] + edge[1] * edge[1]).sqrt();
+        edges.push(edge);
+        edge_lengths.push(len);
+    }
+
+    let mut min_width = f64::MAX;
+
+    for i in 0..n {
+        if edge_lengths[i] < f64::EPSILON {
+            continue;
+        }
+
+        let p1 = hull[i];
+        let edge = edges[i];
+        let edge_len = edge_lengths[i];
+
+        let mut max_dist: f64 = 0.0;
+
+        for &point in &hull {
+            let to_point = [point[0] - p1[0], point[1] - p1[1]];
+            let dist = (edge[0] * to_point[1] - edge[1] * to_point[0]).abs() / edge_len;
+            max_dist = max_dist.max(dist);
+        }
+
+        if max_dist > f64::EPSILON {
+            min_width = min_width.min(max_dist);
+        }
+    }
+
+    min_width
+}
+
+#[inline]
+pub fn max_feret(polygon: &Polygon) -> f64 {
+    let hull = convex_hull(polygon).xy;
+    let n = hull.len();
+
+    let mut max_dist_sq: f64 = 0.0;
+    let mut j = 1;
+
+    for i in 0..n {
+        loop {
+            let next_j = (j + 1) % n;
+
+            let dx1 = hull[i][0] - hull[j][0];
+            let dy1 = hull[i][1] - hull[j][1];
+            let dist1_sq = dx1 * dx1 + dy1 * dy1;
+
+            let dx2 = hull[i][0] - hull[next_j][0];
+            let dy2 = hull[i][1] - hull[next_j][1];
+            let dist2_sq = dx2 * dx2 + dy2 * dy2;
+
+            if dist2_sq > dist1_sq {
+                j = next_j;
+            } else {
+                break;
+            }
+        }
+
+        let dx = hull[i][0] - hull[j][0];
+        let dy = hull[i][1] - hull[j][1];
+        let dist_sq = dx * dx + dy * dy;
+        max_dist_sq = max_dist_sq.max(dist_sq);
+    }
+
+    max_dist_sq.sqrt()
+}
+
+#[inline]
+pub fn descriptors(polygon: &Polygon) -> [f64; 18] {
+    let n = polygon.xy.len();
+
+    let is_closed =
+        polygon.xy[0][0] == polygon.xy[n - 1][0] && polygon.xy[0][1] == polygon.xy[n - 1][1];
+
+    let mut area_ = 0.0;
+    for i in 0..n - 1 {
+        let p1 = &polygon.xy[i];
+        let p2 = &polygon.xy[i + 1];
+        area_ += p1[0] * p2[1] - p2[0] * p1[1];
+    }
+    if !is_closed {
+        let p1 = &polygon.xy[n - 1];
+        let p2 = &polygon.xy[0];
+        area_ += p1[0] * p2[1] - p2[0] * p1[1];
+    }
+    area_ = area_.abs() / 2.0;
+
+    let mut xmin = polygon.xy[0][0];
+    let mut ymin = polygon.xy[0][1];
+    let mut xmax = polygon.xy[0][0];
+    let mut ymax = polygon.xy[0][1];
+
+    for point in polygon.xy.iter().skip(1) {
+        xmin = xmin.min(point[0]);
+        ymin = ymin.min(point[1]);
+        xmax = xmax.max(point[0]);
+        ymax = ymax.max(point[1]);
+    }
+
+    let width = xmax - xmin;
+    let height = ymax - ymin;
+    let area_bbox = width * height;
+
+    let mut perimeter = 0.0;
+    for i in 0..n - 1 {
+        let dx = polygon.xy[i][0] - polygon.xy[i + 1][0];
+        let dy = polygon.xy[i][1] - polygon.xy[i + 1][1];
+        perimeter += (dx * dx + dy * dy).sqrt();
+    }
+    if !is_closed {
+        let dx = polygon.xy[n - 1][0] - polygon.xy[0][0];
+        let dy = polygon.xy[n - 1][1] - polygon.xy[0][1];
+        perimeter += (dx * dx + dy * dy).sqrt();
+    }
+
+    let centroid = polygon_centroid(polygon);
+
+    let convex_hull = polygon.convex_hull();
+    let area_convex = area(&convex_hull);
+
+    let ellipse = fit_ellipse_lstsq(polygon);
+    let major_axis_length = ellipse[0];
+    let minor_axis_length = ellipse[1];
+    let eccentricity = ellipse[2];
+
+    let effective_n = if is_closed { n - 1 } else { n };
+    let mut min_radius = f64::MAX;
+    let mut max_radius = 0.0;
+    let mut radius_sum = 0.0;
+
+    for i in 0..effective_n {
+        let point = &polygon.xy[i];
+
+        let dx = centroid.x - point[0];
+        let dy = centroid.y - point[1];
+        let dist_sq = dx * dx + dy * dy;
+        let dist = dist_sq.sqrt();
+
+        if dist > max_radius {
+            max_radius = dist;
+        }
+
+        radius_sum += dist;
+    }
+
+    for i in 0..polygon.xy.len() {
+        let p1 = &polygon.xy[i];
+        let p2 = &polygon.xy[(i + 1) % polygon.xy.len()];
+        let distance = point_to_line_segment_distance(centroid.x, centroid.y, p1, p2);
+        if distance < min_radius {
+            min_radius = distance;
+        }
+    }
+
+    let mean_radius = radius_sum / effective_n as f64;
+
+    let hull_points = &convex_hull.xy;
+    let hull_n = hull_points.len();
+
+    let mut min_feret = f64::MAX;
+    let mut max_feret = 0.0;
+
+    if hull_n > 2 {
+        for i in 0..hull_n {
+            let p1 = hull_points[i];
+            let p2 = hull_points[(i + 1) % hull_n];
+            let edge = [p2[0] - p1[0], p2[1] - p1[1]];
+            let edge_len = (edge[0] * edge[0] + edge[1] * edge[1]).sqrt();
+
+            if edge_len < f64::EPSILON {
+                continue;
+            }
+
+            let mut max_dist: f64 = 0.0;
+            for &point in hull_points {
+                let to_point = [point[0] - p1[0], point[1] - p1[1]];
+                let dist = (edge[0] * to_point[1] - edge[1] * to_point[0]).abs() / edge_len;
+                max_dist = max_dist.max(dist);
+            }
+
+            if max_dist > f64::EPSILON {
+                min_feret = min_feret.min(max_dist);
+            }
+        }
+
+        let mut max_dist_sq: f64 = 0.0;
+        let mut j = 1;
+
+        for i in 0..hull_n {
+            loop {
+                let next_j = (j + 1) % hull_n;
+
+                let dx1 = hull_points[i][0] - hull_points[j][0];
+                let dy1 = hull_points[i][1] - hull_points[j][1];
+                let dist1_sq = dx1 * dx1 + dy1 * dy1;
+
+                let dx2 = hull_points[i][0] - hull_points[next_j][0];
+                let dy2 = hull_points[i][1] - hull_points[next_j][1];
+                let dist2_sq = dx2 * dx2 + dy2 * dy2;
+
+                if dist2_sq > dist1_sq {
+                    j = next_j;
+                } else {
+                    break;
+                }
+            }
+
+            let dx = hull_points[i][0] - hull_points[j][0];
+            let dy = hull_points[i][1] - hull_points[j][1];
+            let dist_sq = dx * dx + dy * dy;
+            max_dist_sq = max_dist_sq.max(dist_sq);
+        }
+
+        max_feret = max_dist_sq.sqrt();
+    }
+
+    let elongation = if height == 0.0 {
+        if width == 0.0 {
+            1.0
+        } else {
+            0.0
+        }
+    } else {
+        let ratio = width / height;
+        if ratio > 1.0 {
+            1.0 / ratio
+        } else {
+            ratio
+        }
+    };
+
+    let thread_length = {
+        let left = perimeter.powi(2);
+        let right = 16.0 * area_;
+        let coefficient = if left <= right {
+            0.0
+        } else {
+            (left - right).sqrt()
+        };
+        (perimeter + coefficient) / 4.0
+    };
+
+    let solidity = if area_convex == 0.0 {
+        0.0
+    } else {
+        area_ / area_convex
+    };
+    let extent = if area_bbox == 0.0 {
+        0.0
+    } else {
+        area_ / area_bbox
+    };
+    let form_factor = if perimeter == 0.0 {
+        0.0
+    } else {
+        (4.0 * std::f64::consts::PI * area_) / (perimeter * perimeter)
+    };
+    let equivalent_diameter = (area_ / std::f64::consts::PI).sqrt() * 2.0;
+
+    [
+        area_,
+        area_bbox,
+        area_convex,
+        perimeter,
+        elongation,
+        thread_length,
+        solidity,
+        extent,
+        form_factor,
+        equivalent_diameter,
+        eccentricity,
+        major_axis_length,
+        minor_axis_length,
+        min_radius,
+        max_radius,
+        mean_radius,
+        min_feret,
+        max_feret,
     ]
 }
