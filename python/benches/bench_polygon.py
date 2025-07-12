@@ -1,6 +1,6 @@
 import numpy as np
 from begonia import Polygon, Point2d
-from benches import runtime, runtime_block
+from bench_utils import runtime, runtime_block
 
 N_ITER: int = 1000
 N_REPS: int = 10
@@ -117,6 +117,7 @@ make_benchmark("max_radius", "max_radius (n = {n})")
 make_benchmark("mean_radius", "mean_radius (n = {n})")
 make_benchmark("min_feret", "min_feret (n = {n})")
 make_benchmark("max_feret", "max_feret (n = {n})")
+make_benchmark("descriptors", "descriptors (n = {n})")
 
 make_benchmark_polygon("add", "add (n = {n})")
 make_benchmark_polygon("sub", "sub (n = {n})")

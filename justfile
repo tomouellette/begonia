@@ -2,7 +2,7 @@
 
 [group: 'dev']
 install:
-  maturin build --release; python3 -m pip install -e .
+  maturin build --release; python3 -m pip install .
 
 [group: 'dev']
 test:
